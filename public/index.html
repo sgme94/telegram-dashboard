@@ -58,6 +58,13 @@
     .nav-item.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
     .nav-icon { font-size: 20px; margin-bottom: 4px; }
     .nav-label { font-size: 11px; font-weight: 500; }
+    
+    /* 加载状态 */
+    .loading { text-align: center; padding: 40px; color: #718096; }
+    .loading-spinner { display: inline-block; width: 30px; height: 30px; border: 3px solid #e9ecef; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .refresh-btn { position: fixed; bottom: 80px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; font-size: 20px; cursor: pointer; box-shadow: 0 4px 12px rgba(102,126,234,0.4); z-index: 99; }
+    .last-update { position: fixed; bottom: 80px; left: 20px; font-size: 11px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 20px; }
   </style>
 </head>
 <body>
@@ -68,14 +75,20 @@
     </div>
 
     <!-- 工作记录 -->
-    <div id="tab-work" class="tab-content active"></div>
+    <div id="tab-work" class="tab-content active"><div class="loading"><div class="loading-spinner"></div><p style="margin-top: 12px;">从 GitHub 加载数据...</p></div></div>
 
     <!-- 项目进度 -->
-    <div id="tab-progress" class="tab-content"></div>
+    <div id="tab-progress" class="tab-content"><div class="loading"><div class="loading-spinner"></div><p style="margin-top: 12px;">从 GitHub 加载数据...</p></div></div>
 
     <!-- 进化记录 -->
-    <div id="tab-evolution" class="tab-content"></div>
+    <div id="tab-evolution" class="tab-content"><div class="loading"><div class="loading-spinner"></div><p style="margin-top: 12px;">从 GitHub 加载数据...</p></div></div>
   </div>
+
+  <!-- 最后更新时间 -->
+  <div class="last-update" id="lastUpdate">最后更新：--</div>
+
+  <!-- 刷新按钮 -->
+  <button class="refresh-btn" onclick="loadAllData()" title="刷新">🔄</button>
 
   <!-- 底部导航 -->
   <nav class="bottom-nav">
@@ -94,107 +107,72 @@
   </nav>
 
   <script>
-    // 数据
-    const summaries = [
-      {
-        date: '2026-03-04',
-        content: `### ✅ 完成的任务
-- 重新设计 Telegram 群组工作总结流程
-- 创建 daily-summary-group.js 脚本（V3 简化版）
-- 更新 HEARTBEAT.md 配置
-- 清理小麦同步相关代码
-- 更新 README 文档
-- 部署看板到 Vercel
+    // GitHub 配置
+    const GITHUB_OWNER = 'sgme94';
+    const GITHUB_REPO = 'telegram-dashboard';
+    
+    // 数据缓存
+    let issues = [];
+    let summaries = [];
+    let projects = [];
+    let evolutions = [];
 
-### 📚 学习记录
-- 学习了 OpenClaw message 工具的 Telegram 发送机制
-- 掌握了 Windows Task Scheduler 配置方法
-- 了解了消息截断处理（Telegram 4096 字符限制）
-- Vercel 部署配置与优化`
-      },
-      {
-        date: '2026-03-03',
-        content: `### ✅ 完成的任务
-- Telegram 任务看板 Canvas 页面开发
-- 工作记录/进化记录/项目进度页面完成
-
-### 📚 学习记录
-- Canvas API 集成
-- Telegram Web App 主题适配
-- 深色模式自动切换`
+    // 从 GitHub 加载 Issues
+    async function loadIssues() {
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/issues?state=all&per_page=100`);
+        if (!res.ok) throw new Error('加载失败');
+        issues = await res.json();
+        processData();
+        updateLastUpdateTime();
+      } catch (e) {
+        console.error('加载失败:', e);
+        document.getElementById('tab-work').innerHTML = `<div class="loading">加载失败：${e.message}<br><button onclick="loadAllData()" style="margin-top: 12px; padding: 8px 16px; border: none; border-radius: 8px; background: #667eea; color: white; cursor: pointer;">重试</button></div>`;
+        document.getElementById('tab-progress').innerHTML = document.getElementById('tab-work').innerHTML;
+        document.getElementById('tab-evolution').innerHTML = document.getElementById('tab-work').innerHTML;
       }
-    ];
+    }
 
-    const projects = [
-      {
-        name: '📝 工作总结系统',
-        tasks: [
-          { text: '重新设计 Telegram 群组总结流程', done: true },
-          { text: '创建 daily-summary-group.js 脚本', done: true },
-          { text: '更新 HEARTBEAT.md 配置', done: true },
-          { text: '清理小麦同步代码', done: true }
-        ]
-      },
-      {
-        name: '🌐 Telegram 看板部署',
-        tasks: [
-          { text: '创建 Vercel 部署文件结构', done: true },
-          { text: '配置 vercel.json', done: true },
-          { text: '创建 README 部署指南', done: true },
-          { text: '初始化 Git 仓库', done: true },
-          { text: '推送到 GitHub', done: true },
-          { text: '部署到 Vercel', done: true }
-        ]
-      },
-      {
-        name: '🧬 Evolver 进化系统',
-        tasks: [
-          { text: '工作流程优化', done: true },
-          { text: 'Canvas 页面优化', done: true }
-        ]
-      }
-    ];
+    // 处理数据
+    function processData() {
+      // 工作记录：label 包含 "工作总结" 的 Issue
+      summaries = issues.filter(i => i.labels.some(l => l.name.includes('工作总结')));
+      
+      // 进化记录：label 包含 "进化" 或 "改进" 的 Issue
+      evolutions = issues.filter(i => i.labels.some(l => l.name.includes('进化') || l.name.includes('改进')));
+      
+      // 项目进度：按 label 分组
+      const labelMap = {};
+      issues.forEach(i => {
+        i.labels.forEach(l => {
+          if (!labelMap[l.name]) labelMap[l.name] = [];
+          labelMap[l.name].push(i);
+        });
+      });
+      projects = Object.entries(labelMap).map(([name, tasks]) => ({ name, tasks }));
+      
+      renderAll();
+    }
 
-    const evolutions = [
-      {
-        date: '2026-03-04',
-        title: '工作流程优化',
-        content: `### 🧬 改进内容
-- 简化 Telegram 群组总结流程
-- 移除小麦同步依赖
-- 优化错误处理机制
-
-### 📊 效果
-- 执行时间减少 40%
-- 代码可维护性提升`
-      },
-      {
-        date: '2026-03-03',
-        title: 'Canvas 页面优化',
-        content: `### 🧬 改进内容
-- 添加 Telegram Web App 主题适配
-- 优化移动端显示效果
-- 添加下拉刷新功能
-
-### 📊 效果
-- 用户体验显著提升
-- 支持深色模式自动切换`
-      }
-    ];
-
-    // 工具函数
-    function parseMarkdown(text) {
-      if (!text) return '';
-      return text
+    // 解析 Issue body 中的 Markdown
+    function parseBody(body) {
+      if (!body) return '';
+      return body
         .replace(/^### (.*$)/gm, '<h3>$1</h3>')
         .replace(/^## (.*$)/gm, '<h2>$1</h2>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^- \[(x| )\] (.*$)/gm, (match, checked, text) => {
+          const icon = checked === 'x' ? '✅' : '⏳';
+          const cls = checked === 'x' ? 'task-done' : '';
+          return `<div class="task"><span class="task-icon">${icon}</span><span class="task-text ${cls}">${text}</span></div>`;
+        })
         .replace(/^- (.*$)/gm, '<li>$1</li>')
         .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
         .replace(/<\/ul><ul>/g, '')
         .replace(/\n/g, '<br>');
     }
 
+    // 格式化日期
     function formatDate(dateStr) {
       const date = new Date(dateStr);
       return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
@@ -202,10 +180,18 @@
 
     // 渲染工作记录
     function renderWork() {
+      if (summaries.length === 0) {
+        document.getElementById('tab-work').innerHTML = '<div class="loading">暂无工作记录<br><small>创建 label 包含 "工作总结" 的 Issue</small></div>';
+        return;
+      }
       document.getElementById('tab-work').innerHTML = summaries.map(s => `
         <div class="card">
-          <div class="card-title">${formatDate(s.date)}</div>
-          <div class="card-body">${parseMarkdown(s.content)}</div>
+          <div class="card-title">${formatDate(s.created_at)}</div>
+          <div class="card-body">
+            <div style="margin-bottom: 8px;"><strong>${s.title}</strong></div>
+            ${parseBody(s.body)}
+            ${s.state === 'closed' ? '<div style="margin-top: 8px; color: #48bb78; font-size: 12px;">✅ 已完成</div>' : ''}
+          </div>
         </div>
       `).join('');
     }
@@ -214,9 +200,12 @@
     function renderProgress() {
       let total = 0, completed = 0;
       projects.forEach(p => {
-        p.tasks.forEach(t => { total++; if (t.done) completed++; });
+        p.tasks.forEach(t => {
+          total++;
+          if (t.state === 'closed') completed++;
+        });
       });
-      const percent = Math.round((completed / total) * 100);
+      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
       document.getElementById('tab-progress').innerHTML = `
         <div class="stats">
@@ -226,18 +215,18 @@
           <div class="stat-card"><div class="stat-value">${projects.length}</div><div class="stat-label">项目</div></div>
         </div>
         ${projects.map(p => {
-          const done = p.tasks.filter(t => t.done).length;
-          const pcent = Math.round((done / p.tasks.length) * 100);
+          const done = p.tasks.filter(t => t.state === 'closed').length;
+          const pcent = p.tasks.length > 0 ? Math.round((done / p.tasks.length) * 100) : 0;
           return `
             <div class="project-card">
-              <div class="project-name">${p.name}</div>
+              <div class="project-name">📋 ${p.name} (${p.tasks.length})</div>
               <div class="progress-bar"><div class="progress-fill" style="width:${pcent}%"></div></div>
               <div class="progress-text">${done}/${p.tasks.length} 完成 (${pcent}%)</div>
               <div style="margin-top: 12px;">
                 ${p.tasks.map(t => `
                   <div class="task">
-                    <span class="task-icon">${t.done ? '✅' : '⏳'}</span>
-                    <span class="task-text ${t.done ? 'task-done' : ''}">${t.text}</span>
+                    <span class="task-icon">${t.state === 'closed' ? '✅' : '⏳'}</span>
+                    <span class="task-text ${t.state === 'closed' ? 'task-done' : ''}">${t.title}</span>
                   </div>
                 `).join('')}
               </div>
@@ -249,12 +238,23 @@
 
     // 渲染进化记录
     function renderEvolution() {
+      if (evolutions.length === 0) {
+        document.getElementById('tab-evolution').innerHTML = '<div class="loading">暂无进化记录<br><small>创建 label 包含 "进化" 或 "改进" 的 Issue</small></div>';
+        return;
+      }
       document.getElementById('tab-evolution').innerHTML = evolutions.map(e => `
         <div class="timeline-item">
-          <div class="timeline-date">${formatDate(e.date)} · ${e.title}</div>
-          <div class="timeline-content">${parseMarkdown(e.content)}</div>
+          <div class="timeline-date">${formatDate(e.created_at)} · ${e.title}</div>
+          <div class="timeline-content">${parseBody(e.body)}</div>
         </div>
       `).join('');
+    }
+
+    // 渲染所有
+    function renderAll() {
+      renderWork();
+      renderProgress();
+      renderEvolution();
     }
 
     // 切换标签
@@ -265,10 +265,32 @@
       event.currentTarget.classList.add('active');
     }
 
+    // 加载所有数据
+    function loadAllData() {
+      document.getElementById('tab-work').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p style="margin-top: 12px;">从 GitHub 加载数据...</p></div>';
+      document.getElementById('tab-progress').innerHTML = document.getElementById('tab-work').innerHTML;
+      document.getElementById('tab-evolution').innerHTML = document.getElementById('tab-work').innerHTML;
+      loadIssues();
+    }
+
+    // 更新最后更新时间
+    function updateLastUpdateTime() {
+      const now = new Date();
+      document.getElementById('lastUpdate').textContent = '最后更新：' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // 自动刷新（5 分钟）
+    let autoRefreshInterval;
+    function startAutoRefresh() {
+      autoRefreshInterval = setInterval(() => {
+        console.log('自动刷新数据...');
+        loadIssues();
+      }, 5 * 60 * 1000); // 5 分钟
+    }
+
     // 初始化
-    renderWork();
-    renderProgress();
-    renderEvolution();
+    loadAllData();
+    startAutoRefresh();
   </script>
 </body>
 </html>
