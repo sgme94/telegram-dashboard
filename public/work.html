@@ -4,9 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>工作记录</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="utils.js"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+    .header h1 { font-size: 28px; margin-bottom: 10px; }
+    .controls { display: flex; gap: 10px; padding: 20px; justify-content: center; flex-wrap: wrap; }
+    .controls button { padding: 10px 20px; border: none; border-radius: 8px; background: #667eea; color: white; cursor: pointer; font-size: 14px; }
+    .controls button:hover { background: #5568d3; }
+    .content { padding: 20px; }
+    .card { border: 1px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .card-header { margin-bottom: 15px; }
+    .card-title { font-size: 18px; font-weight: 600; color: #2d3748; }
+    .card-body { line-height: 1.8; color: #4a5568; }
+    .card-body h3 { font-size: 16px; margin: 12px 0 8px; color: #667eea; }
+    .card-body ul { margin-left: 20px; }
+    .card-body li { margin: 5px 0; }
+    .empty, .error { text-align: center; padding: 40px; color: #a0aec0; }
+    .error { color: #e53e3e; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -14,189 +36,99 @@
       <h1>📝 工作记录</h1>
       <p>每日工作总结与学习记录</p>
     </div>
-    
     <div class="controls">
-      <button onclick="loadSummaries()">🔄 刷新</button>
+      <button onclick="renderSummaries()">🔄 刷新</button>
       <button onclick="showLatest()">📅 最新</button>
       <button onclick="toggleView()">👁️ 视图</button>
     </div>
-    
-    <div class="content" id="content">
-      <div class="loading">
-        <div class="loading-spinner"></div>
-        <p style="margin-top: 12px; color: var(--text-secondary);">加载中...</p>
-      </div>
-    </div>
+    <div class="content" id="content"></div>
   </div>
-  
-  <button 
-    class="btn" 
-    onclick="loadSummaries()" 
-    style="position: fixed; bottom: 20px; right: 20px; border-radius: 50%; width: 56px; height: 56px; padding: 0; box-shadow: 0 4px 16px rgba(102,126,234,0.4);"
-    title="刷新"
-  >
-    🔄
-  </button>
 
   <script>
-    const API_BASE = '/api';
-    let summaries = [];
+    // 内置数据（后续可替换为 API 调用）
+    const summaries = [
+      {
+        date: '2026-03-04',
+        content: `### ✅ 完成的任务
+- 重新设计 Telegram 群组工作总结流程
+- 创建 daily-summary-group.js 脚本（V3 简化版）
+- 更新 HEARTBEAT.md 配置
+- 清理小麦同步相关代码
+- 更新 README 文档
+
+### 📚 学习记录
+- 学习了 OpenClaw message 工具的 Telegram 发送机制
+- 掌握了 Windows Task Scheduler 配置方法
+- 了解了消息截断处理（Telegram 4096 字符限制）`
+      },
+      {
+        date: '2026-03-03',
+        content: `### ✅ 完成的任务
+- Telegram 任务看板 Canvas 页面开发
+- 工作记录/进化记录/项目进度页面完成
+
+### 📚 学习记录
+- Canvas API 集成
+- Telegram Web App 主题适配
+- 深色模式自动切换`
+      }
+    ];
+
     let listView = true;
-    
-    // 初始化 Telegram Web App
-    if (window.Telegram && window.Telegram.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
-      
-      // 应用 Telegram 主题
-      const tg = window.Telegram.WebApp;
-      if (tg.colorScheme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
-      
-      // 设置头部颜色
-      tg.setHeaderColor(tg.themeParams.secondary_bg_color || '#667eea');
+
+    function parseMarkdown(text) {
+      if (!text) return '';
+      return text
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^- (.*$)/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/<\/ul><ul>/g, '')
+        .replace(/\n/g, '<br>');
     }
-    
-    // 检测系统深色模式
-    function applyTheme() {
-      if (window.CanvasUtils && window.CanvasUtils.isDarkMode()) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
-    }
-    applyTheme();
-    
-    // 监听主题变化
-    if (window.CanvasUtils) {
-      window.CanvasUtils.onThemeChange((isDark) => {
-        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-      });
-    }
-    
-    // 加载工作记录
-    async function loadSummaries() {
-      const content = document.getElementById('content');
-      content.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p style="margin-top: 12px; color: var(--text-secondary);">加载中...</p></div>';
-      
-      try {
-        const res = await fetch(API_BASE + '/summaries');
-        if (!res.ok) throw new Error('加载失败');
-        summaries = await res.json();
-        
-        if (!summaries || summaries.length === 0) {
-          content.innerHTML = `
-            <div class="empty">
-              <div class="empty-icon">📭</div>
-              <div class="empty-text">暂无工作记录<br>开始工作后会自动生成记录</div>
-            </div>
-          `;
-          return;
-        }
-        
-        renderSummaries();
-      } catch (e) {
-        content.innerHTML = `
-          <div class="error">
-            <div class="error-icon">⚠️</div>
-            <p>加载失败：${e.message}</p>
-            <p style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">请确保 API 服务器正在运行</p>
-          </div>
-        `;
-      }
-    }
-    
-    // 渲染工作记录
-    function renderSummaries() {
-      const content = document.getElementById('content');
-      
-      if (listView) {
-        content.innerHTML = summaries.map(s => `
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">${formatDate(s.date)}</div>
-            </div>
-            <div class="card-body">
-              ${parseMarkdown(s.content || s.summary || '')}
-            </div>
-          </div>
-        `).join('');
-      } else {
-        // 紧凑视图
-        content.innerHTML = `
-          <div class="stats-grid" style="margin-bottom: 16px;">
-            <div class="stat-card">
-              <div class="stat-value">${summaries.length}</div>
-              <div class="stat-label">总记录数</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${calculateTotalHours()}</div>
-              <div class="stat-label">总工时</div>
-            </div>
-          </div>
-          ${summaries.map(s => `
-            <div class="list-item">
-              <div class="list-icon">📝</div>
-              <div class="list-content">
-                <div class="list-title">${formatRelativeDate(s.date)}</div>
-                <div class="list-desc">${(s.content || s.summary || '').substring(0, 50)}...</div>
-              </div>
-            </div>
-          `).join('')}
-        `;
-      }
-    }
-    
-    // 格式化日期
+
     function formatDate(dateStr) {
       if (!dateStr) return '未知日期';
       const date = new Date(dateStr);
-      return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
+      return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
     }
-    
-    // 相对日期
+
     function formatRelativeDate(dateStr) {
       if (!dateStr) return '';
       const date = new Date(dateStr);
       const now = new Date();
       const diff = now - date;
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      
       if (days === 0) return '今天';
       if (days === 1) return '昨天';
       if (days < 7) return `${days}天前`;
       return formatDate(dateStr);
     }
-    
-    // 简单 Markdown 解析
-    function parseMarkdown(text) {
-      if (!text) return '';
-      return text
-        .replace(/^### (.*$)/gm, '<h3 style="font-size: 16px; margin: 12px 0 8px;">$1</h3>')
-        .replace(/^## (.*$)/gm, '<h2 style="font-size: 18px; margin: 16px 0 10px;">$1</h2>')
-        .replace(/^# (.*$)/gm, '<h1 style="font-size: 20px; margin: 20px 0 12px;">$1</h1>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/^- (.*$)/gm, '<li style="margin-left: 20px;">$1</li>')
-        .replace(/\n/g, '<br>')
-        .replace(/<\/li><br>/g, '</li>')
-        .replace(/(<li>.*<\/li>)/gs, '<ul style="margin: 8px 0;">$1</ul>')
-        .replace(/<\/ul><ul>/g, '');
+
+    function renderSummaries() {
+      const content = document.getElementById('content');
+      if (listView) {
+        content.innerHTML = summaries.map(s => `
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">${formatDate(s.date)}</div>
+            </div>
+            <div class="card-body">${parseMarkdown(s.content)}</div>
+          </div>
+        `).join('');
+      } else {
+        content.innerHTML = summaries.map(s => `
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">${formatRelativeDate(s.date)}</div>
+            </div>
+            <div class="card-body">${(s.content).substring(0, 100)}...</div>
+          </div>
+        `).join('');
+      }
     }
-    
-    // 计算总工时
-    function calculateTotalHours() {
-      // 简单估算：每条记录按 4 小时计算
-      return summaries.length * 4;
-    }
-    
-    // 显示最新
+
     function showLatest() {
       if (summaries.length > 0) {
         const content = document.getElementById('content');
@@ -205,28 +137,19 @@
             <div class="card-header">
               <div class="card-title">${formatDate(summaries[0].date)}</div>
             </div>
-            <div class="card-body">
-              ${parseMarkdown(summaries[0].content || summaries[0].summary || '')}
-            </div>
+            <div class="card-body">${parseMarkdown(summaries[0].content)}</div>
           </div>
         `;
       }
     }
-    
-    // 切换视图
+
     function toggleView() {
       listView = !listView;
       renderSummaries();
     }
-    
-    // 初始化下拉刷新
-    if (window.CanvasUtils) {
-      const content = document.getElementById('content');
-      window.CanvasUtils.createPullToRefresh(document.querySelector('.container'), loadSummaries);
-    }
-    
+
     // 初始加载
-    loadSummaries();
+    renderSummaries();
   </script>
 </body>
 </html>

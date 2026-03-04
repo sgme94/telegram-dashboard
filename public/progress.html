@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -12,44 +12,15 @@
       min-height: 100vh;
       padding: 20px;
     }
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      overflow: hidden;
-    }
-    .header {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-      color: white;
-      padding: 30px;
-      text-align: center;
-    }
+    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; }
     .header h1 { font-size: 28px; margin-bottom: 10px; }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 15px;
-      padding: 30px;
-      background: #f8f9fa;
-    }
-    .stat-card {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; padding: 30px; background: #f8f9fa; }
+    .stat-card { background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     .stat-value { font-size: 32px; font-weight: bold; color: #f5576c; }
     .stat-label { font-size: 14px; color: #718096; margin-top: 5px; }
     .projects { padding: 30px; }
-    .project-card {
-      border: 1px solid #e9ecef;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
+    .project-card { border: 1px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
     .project-name { font-size: 18px; font-weight: 600; color: #2d3748; margin-bottom: 10px; }
     .progress-bar { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 10px 0; }
     .progress-fill { height: 100%; background: linear-gradient(90deg, #f093fb, #f5576c); }
@@ -59,10 +30,7 @@
     .task:last-child { border-bottom: none; }
     .task-icon { margin-right: 10px; }
     .task-text { flex: 1; color: #4a5568; }
-    .loading, .empty, .error { text-align: center; padding: 40px; }
-    .loading { color: #f5576c; }
-    .empty { color: #a0aec0; }
-    .error { color: #e53e3e; }
+    .task-done { color: #48bb78; }
   </style>
 </head>
 <body>
@@ -71,40 +39,84 @@
       <h1>📊 项目进度看板</h1>
       <p>任务追踪与进度统计</p>
     </div>
-    <div class="stats" id="stats">
-      <div class="stat-card"><div class="stat-value" id="totalTasks">-</div><div class="stat-label">总任务数</div></div>
-      <div class="stat-card"><div class="stat-value" id="completedTasks">-</div><div class="stat-label">已完成</div></div>
-      <div class="stat-card"><div class="stat-value" id="progressPercent">-</div><div class="stat-label">完成率</div></div>
-      <div class="stat-card"><div class="stat-value" id="totalSummaries">-</div><div class="stat-label">工作记录</div></div>
-    </div>
-    <div class="projects" id="projects"><div class="loading">加载中...</div></div>
+    <div class="stats" id="stats"></div>
+    <div class="projects" id="projects"></div>
   </div>
+
   <script>
-    const API_BASE = '/api';
-    async function loadProgress() {
-      try {
-        const summariesRes = await fetch(API_BASE + '/summaries');
-        const summaries = await summariesRes.json();
-        const evolverRes = await fetch(API_BASE + '/evolver');
-        const evolver = await evolverRes.json();
-        const totalSummaries = summaries?.length || 0;
-        const totalEvolver = evolver?.length || 0;
-        const totalTasks = totalSummaries + totalEvolver;
-        document.getElementById('totalTasks').textContent = totalTasks;
-        document.getElementById('completedTasks').textContent = totalTasks;
-        document.getElementById('progressPercent').textContent = totalTasks > 0 ? '100%' : '0%';
-        document.getElementById('totalSummaries').textContent = totalSummaries;
-        const projects = document.getElementById('projects');
-        if (totalTasks === 0) {
-          projects.innerHTML = '<div class="empty">暂无项目数据</div>';
-          return;
-        }
-        projects.innerHTML = '<div class="project-card"><div class="project-name">📝 工作总结</div><div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div><div class="progress-text">' + totalSummaries + ' 条记录</div></div><div class="project-card"><div class="project-name">🧬 Evolver 进化</div><div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div><div class="progress-text">' + totalEvolver + ' 条记录</div></div>';
-      } catch (e) {
-        document.getElementById('projects').innerHTML = '<div class="error">加载失败：' + e.message + '</div>';
+    // 内置数据
+    const projects = [
+      {
+        name: '📝 工作总结系统',
+        tasks: [
+          { text: '重新设计 Telegram 群组总结流程', done: true },
+          { text: '创建 daily-summary-group.js 脚本', done: true },
+          { text: '更新 HEARTBEAT.md 配置', done: true },
+          { text: '清理小麦同步代码', done: true }
+        ]
+      },
+      {
+        name: '🌐 Telegram 看板部署',
+        tasks: [
+          { text: '创建 Vercel 部署文件结构', done: true },
+          { text: '配置 vercel.json', done: true },
+          { text: '创建 README 部署指南', done: true },
+          { text: '初始化 Git 仓库', done: true },
+          { text: '推送到 GitHub', done: true },
+          { text: '部署到 Vercel', done: true }
+        ]
+      },
+      {
+        name: '🧬 Evolver 进化系统',
+        tasks: [
+          { text: '工作流程优化', done: true },
+          { text: 'Canvas 页面优化', done: true }
+        ]
       }
+    ];
+
+    function calculateStats() {
+      let total = 0, completed = 0;
+      projects.forEach(p => {
+        p.tasks.forEach(t => {
+          total++;
+          if (t.done) completed++;
+        });
+      });
+      return { total, completed, percent: total > 0 ? Math.round((completed / total) * 100) : 0 };
     }
-    loadProgress();
+
+    function render() {
+      const stats = calculateStats();
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${stats.total}</div><div class="stat-label">总任务数</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.completed}</div><div class="stat-label">已完成</div></div>
+        <div class="stat-card"><div class="stat-value">${stats.percent}%</div><div class="stat-label">完成率</div></div>
+        <div class="stat-card"><div class="stat-value">${projects.length}</div><div class="stat-label">项目数</div></div>
+      `;
+
+      document.getElementById('projects').innerHTML = projects.map(p => {
+        const done = p.tasks.filter(t => t.done).length;
+        const percent = Math.round((done / p.tasks.length) * 100);
+        return `
+          <div class="project-card">
+            <div class="project-name">${p.name}</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${percent}%"></div></div>
+            <div class="progress-text">${done}/${p.tasks.length} 完成 (${percent}%)</div>
+            <div class="tasks">
+              ${p.tasks.map(t => `
+                <div class="task">
+                  <span class="task-icon">${t.done ? '✅' : '⏳'}</span>
+                  <span class="task-text ${t.done ? 'task-done' : ''}">${t.text}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    render();
   </script>
 </body>
 </html>

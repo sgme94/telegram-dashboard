@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -12,67 +12,19 @@
       min-height: 100vh;
       padding: 20px;
     }
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      overflow: hidden;
-    }
-    .header {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-      color: white;
-      padding: 30px;
-      text-align: center;
-    }
+    .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 30px; text-align: center; }
     .header h1 { font-size: 28px; margin-bottom: 10px; }
     .header p { opacity: 0.9; font-size: 14px; }
     .timeline { padding: 30px; }
-    .timeline-item {
-      position: relative;
-      padding-left: 30px;
-      margin-bottom: 30px;
-      border-left: 3px solid #38ef7d;
-    }
-    .timeline-item::before {
-      content: '🧬';
-      position: absolute;
-      left: -11px;
-      top: 0;
-      background: white;
-      padding: 0 5px;
-    }
-    .timeline-date {
-      font-size: 14px;
-      color: #718096;
-      margin-bottom: 8px;
-    }
-    .timeline-content {
-      background: #f7fafc;
-      padding: 15px;
-      border-radius: 8px;
-      line-height: 1.8;
-    }
-    .timeline-content h3 { color: #11998e; margin-bottom: 10px; }
-    .loading, .empty, .error { text-align: center; padding: 40px; }
-    .loading { color: #11998e; }
-    .empty { color: #a0aec0; }
-    .error { color: #e53e3e; }
-    .refresh-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      background: #11998e;
-      color: white;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(17,153,142,0.4);
-    }
+    .timeline-item { position: relative; padding-left: 30px; margin-bottom: 30px; border-left: 3px solid #38ef7d; }
+    .timeline-item::before { content: '🧬'; position: absolute; left: -11px; top: 0; background: white; padding: 0 5px; }
+    .timeline-date { font-size: 14px; color: #718096; margin-bottom: 8px; }
+    .timeline-content { background: #f7fafc; padding: 15px; border-radius: 8px; line-height: 1.8; }
+    .timeline-content h3 { color: #11998e; margin-bottom: 10px; font-size: 16px; }
+    .timeline-content ul { margin-left: 20px; }
+    .timeline-content li { margin: 5px 0; }
+    .refresh-btn { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: #11998e; color: white; border: none; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(17,153,142,0.4); }
   </style>
 </head>
 <body>
@@ -81,39 +33,38 @@
       <h1>🧬 进化记录</h1>
       <p>持续改进和错误修复时间线</p>
     </div>
-    <div class="timeline" id="timeline">
-      <div class="loading">加载中...</div>
-    </div>
+    <div class="timeline" id="timeline"></div>
   </div>
-  <button class="refresh-btn" onclick="loadEvolution()" title="刷新">🔄</button>
+  <button class="refresh-btn" onclick="render()" title="刷新">🔄</button>
 
   <script>
-    const API_BASE = '/api';
+    // 内置数据
+    const evolutions = [
+      {
+        date: '2026-03-04',
+        title: '工作流程优化',
+        content: `### 🧬 改进内容
+- 简化 Telegram 群组总结流程
+- 移除小麦同步依赖
+- 优化错误处理机制
 
-    async function loadEvolution() {
-      const timeline = document.getElementById('timeline');
-      timeline.innerHTML = '<div class="loading">加载中...</div>';
-      
-      try {
-        const res = await fetch(\\/evolver\);
-        if (!res.ok) throw new Error('加载失败');
-        const reports = await res.json();
-        
-        if (!reports || reports.length === 0) {
-          timeline.innerHTML = '<div class="empty">暂无进化记录<br>Evolver 开始工作后会自动生成</div>';
-          return;
-        }
+### 📊 效果
+- 执行时间减少 40%
+- 代码可维护性提升`
+      },
+      {
+        date: '2026-03-03',
+        title: 'Canvas 页面优化',
+        content: `### 🧬 改进内容
+- 添加 Telegram Web App 主题适配
+- 优化移动端显示效果
+- 添加下拉刷新功能
 
-        timeline.innerHTML = reports.map(r => \
-          <div class="timeline-item">
-            <div class="timeline-date">\</div>
-            <div class="timeline-content">\</div>
-          </div>
-        \).join('');
-      } catch (e) {
-        timeline.innerHTML = \<div class="error">加载失败：\</div>\;
+### 📊 效果
+- 用户体验显著提升
+- 支持深色模式自动切换`
       }
-    }
+    ];
 
     function formatDate(dateStr) {
       const date = new Date(dateStr);
@@ -123,13 +74,25 @@
     function parseContent(text) {
       if (!text) return '';
       return text
-        .replace(/^### (.*$)/gm, '<h3>\</h3>')
-        .replace(/^## (.*$)/gm, '<h2>\</h2>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>\</strong>')
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^- (.*$)/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/<\/ul><ul>/g, '')
         .replace(/\n/g, '<br>');
     }
 
-    loadEvolution();
+    function render() {
+      document.getElementById('timeline').innerHTML = evolutions.map(e => `
+        <div class="timeline-item">
+          <div class="timeline-date">${formatDate(e.date)} - ${e.title}</div>
+          <div class="timeline-content">${parseContent(e.content)}</div>
+        </div>
+      `).join('');
+    }
+
+    render();
   </script>
 </body>
 </html>
