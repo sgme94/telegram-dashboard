@@ -1,7 +1,5 @@
 // Vercel Serverless Function - Evolver 进化记录 API
-
 export default function handler(req, res) {
-  // 示例数据（后续可以连接真实数据源）
   const evolutions = [
     {
       date: '2026-03-04',

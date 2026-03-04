@@ -1,8 +1,5 @@
 // Vercel Serverless Function - 工作总结 API
-// 从 GitHub Issues 或 JSON 文件读取数据
-
 export default function handler(req, res) {
-  // 示例数据（后续可以连接真实数据源）
   const summaries = [
     {
       date: '2026-03-04',
